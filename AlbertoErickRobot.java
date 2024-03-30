@@ -14,12 +14,14 @@ import java.util.List;
 public class AlbertoErickRobot extends AdvancedRobot {
     private static final int HIT_NUMBERS_TO_SWITCH_MOVEMENT = 3;
     private static final long HIT_EVALUATE_INTERVAL = 3000; // 3 segundos em milissegundos
+    private static final long HIT_WALL_EVALUATE_INTERVAL = 6000; // 3 segundos em milissegundos
     int numberOfHits = 0;
     long firstHitTime = 0;
 	boolean isInAttackMovement = false;
 	private byte directionMovementSign = 1;
 	double enemyBearing = 0;
 	int hitWallCount = 0;
+    long firstHitWallTime = 0;
     Random rand = new Random();
     MoveStrategy moveStrategy = MoveStrategy.ZIG_ZAG;
     List<MoveStrategy> moveStrategyList = Arrays.asList(MoveStrategy.ZIG_ZAG, MoveStrategy.CIRCLE);
@@ -107,12 +109,18 @@ public class AlbertoErickRobot extends AdvancedRobot {
 	 * onHitWall: What to do when you hit a wall
 	 */
 	public void onHitWall(HitWallEvent e) {
+	    System.out.println("HIT Wall");
+
 		hitWallCount++;
-		if (hitWallCount >= HIT_NUMBERS_TO_SWITCH_MOVEMENT) {
+		if(numberOfHits == 1) {
+		    System.out.println("Primeiro HIT Wall");
+
+		    firstHitWallTime = getTime();
+		}
+		if (hitWallCount >= HIT_NUMBERS_TO_SWITCH_MOVEMENT && (getTime() - firstHitWallTime <= HIT_WALL_EVALUATE_INTERVAL)) {
 			hitWallCount = 0;
 			moveStrategy = MoveStrategy.CIRCLE;
 		}
-	    System.out.println("bateu na parede");
 	}
 	
 	enum WallNear {
