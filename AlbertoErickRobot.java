@@ -1,99 +1,63 @@
 package alberto;
 
-import robocode.AdvancedRobot;
-import robocode.HitByBulletEvent;
-import robocode.HitWallEvent;
-import robocode.ScannedRobotEvent;
+import robocode.*;
 
+import java.util.Random;
 import java.awt.*;
+import java.util.Arrays;
+import java.util.List;
 
 public class AlbertoErickRobot extends AdvancedRobot {
+    private static final int HIT_NUMBERS_TO_SWITCH_MOVEMENT = 3;
+    private static final long HIT_EVALUATE_INTERVAL = 3000; // 3 segundos em milissegundos
+    private static final long HIT_WALL_EVALUATE_INTERVAL = 6000; // 3 segundos em milissegundos
+    int numberOfHits = 0;
+    long firstHitTime = 0;
+    private byte directionMovementSign = 1;
+    double enemyBearing = 0;
+    int hitWallCount = 0;
+    long firstHitWallTime = 0;
+    Random rand = new Random();
+    MoveStrategy moveStrategy = MoveStrategy.ZIG_ZAG;
+    List<MoveStrategy> moveStrategyList = Arrays.asList(MoveStrategy.ZIG_ZAG, MoveStrategy.CIRCLE);
+    int strategyIndex = 0;
+    double nearestEnemyRobotDistance = Double.POSITIVE_INFINITY;
+    String nearestEnemyRobotName = "";
 
-    boolean isInAttackMovement = false;
-
-    WallNear wall = WallNear.NONE;
-    Boolean isAvoidingWall = false;
     public void run() {
-		setup();
+        setup();
 
         while(true) {
-            // Replace the next 4 lines with any behavior you would like
-            System.out.print("x: ");
-            System.out.println(getX());
-            System.out.print("y: ");
-            System.out.println(getY());
-            wall = isNearWall();
-            System.out.println("proximo a parede: ");
 
-            if (!isInAttackMovement) {
-                turnRadarLeft(90);
-            }
+            if (getTime() - firstHitTime > HIT_EVALUATE_INTERVAL) {
+                System.out.println("Limite de tempo ultrapassado - zerando hits");
 
-            switch (wall) {
-                case LEFT_WALL:
-                    System.out.println("esquerda");
-                    if (!isAvoidingWall) {
-                        stop();
-                        turnRight(90);
-                        ahead(100);
-                    }
-                    isAvoidingWall = true;
-                    break;
-                case RIGHT_WALL:
-                    System.out.println("direita");
-                    if (!isAvoidingWall) {
-                        stop();
-                        turnRight(90);
-                        ahead(100);
-                    }
-                    isAvoidingWall = true;
-                    break;
-                case BOTTOM_WALL:
-                    System.out.println("abaixo");
-                    if (!isAvoidingWall) {
-                        stop();
-                        turnRight(90);
-                        ahead(100);
-                    }
-                    isAvoidingWall = true;
-                    break;
-                case TOP_WALL:
-                    System.out.println("acima");
-                    if (!isAvoidingWall) {
-                        stop();
-                        turnRight(90);
-                        ahead(100);
-                        isAvoidingWall = true;
-                    }
-                    break;
-                case NONE:
-                    if (!isInAttackMovement) {
-                        ahead(30);
-                    }
-                    isAvoidingWall = false;
-                    break;
+                numberOfHits = 0;
             }
+            doMoveStrategy();
+
+            turnRadarRightRadians(Double.POSITIVE_INFINITY);
         }
     }
-	
-	private void setup() {
-		setColors(Color.red, Color.blue, Color.white);
-	}
+
+    private void setup() {
+        setColors(Color.red, Color.blue, Color.white);
+    }
 
     private WallNear isNearWall() {
-        if (getX() < 60.0) {
+        if (getX() < 80.0) {
             return WallNear.LEFT_WALL;
         }
 
-        if (getX() > 760.0) {
+        if (getX() > 740.0) {
             return WallNear.RIGHT_WALL;
         }
 
-        if (getY() < 60.0) {
+        if (getY() < 80.0) {
             return WallNear.BOTTOM_WALL;
         }
 
-        if (getY() > 560.0) {
+        if (getY() > 540.0) {
             return WallNear.TOP_WALL;
         }
 
@@ -105,33 +69,145 @@ public class AlbertoErickRobot extends AdvancedRobot {
      */
     public void onScannedRobot(ScannedRobotEvent e) {
         System.out.println("robo escaneado!");
-        isInAttackMovement = true;
-
+        enemyBearing = e.getBearing();
         // vira o robo a 90 graus do alvo scaneado
         double absoluteBearing = getHeadingRadians() + e.getBearingRadians();
         setTurnRightRadians(robocode.util.Utils.normalRelativeAngle(absoluteBearing -
                 getGunHeadingRadians() + 1.57));
-        ahead(100);
-        back(100);
-        isInAttackMovement = false;
+        doMoveStrategy();
+
+        if (e.getDistance() <= nearestEnemyRobotDistance) {
+            System.out.println("Robo mais próximo escaneado: " + e.getName());
+            nearestEnemyRobotDistance = e.getDistance();
+            nearestEnemyRobotName = e.getName();
+        }
+
+        if (e.getName().equals(nearestEnemyRobotName)) {
+            nearestEnemyRobotDistance = e.getDistance();
+            aimOnNearestRobot(e);
+            fire(calculateBulletPower(e.getDistance()));
+        }
     }
 
     /**
      * onHitByBullet: What to do when you're hit by a bullet
      */
     public void onHitByBullet(HitByBulletEvent e) {
-        //back(10);
+        numberOfHits++;
+        if(numberOfHits == 1) {
+            System.out.println("Primeiro HIT");
+
+            firstHitTime = getTime();
+        }
+
+        if(numberOfHits >= HIT_NUMBERS_TO_SWITCH_MOVEMENT && (getTime() - firstHitTime <= HIT_EVALUATE_INTERVAL)){
+            System.out.println("Mudando estratégia");
+
+            strategyIndex++;
+            int expectedIndex = strategyIndex % moveStrategyList.size();
+            moveStrategy = moveStrategyList.get(expectedIndex);
+            numberOfHits = 0;
+        }
+
     }
 
     /**
      * onHitWall: What to do when you hit a wall
      */
     public void onHitWall(HitWallEvent e) {
-        System.out.println("bateu na parede");
+        System.out.println("HIT Wall");
+
+        hitWallCount++;
+        if(numberOfHits == 1) {
+            System.out.println("Primeiro HIT Wall");
+
+            firstHitWallTime = getTime();
+        }
+        if (hitWallCount >= HIT_NUMBERS_TO_SWITCH_MOVEMENT && (getTime() - firstHitWallTime <= HIT_WALL_EVALUATE_INTERVAL)) {
+            hitWallCount = 0;
+            moveStrategy = MoveStrategy.CIRCLE;
+        }
     }
 
     enum WallNear {
         NONE, LEFT_WALL, RIGHT_WALL, TOP_WALL, BOTTOM_WALL,
         LEFT_BOTTOM_WALL, LEFT_TOP_WALL, RIGHT_TOP_WALL, RIGHT_BOTTOM_WALL
+    }
+    enum MoveStrategy {
+        ZIG_ZAG, CIRCLE
+    }
+
+    public void doMoveStrategy() {
+        switch (moveStrategy) {
+            case ZIG_ZAG:
+                System.out.println("Começando ZIG ZAG");
+
+                doMoveInZigZag();
+                break;
+            case CIRCLE:
+                System.out.println("Começando CIRCLE");
+
+                doMoveInCircle();
+                break;
+        }
+    }
+
+    public void doMoveInCircle() {
+        setMaxVelocity(rand.nextDouble() * 8 + 2); // Velocidade aleatória entre 2 e 10
+        if (isNearWall() != WallNear.NONE || getVelocity() == 0) {
+            directionMovementSign *= -1;
+        }
+        setTurnRight(setNormalizeAngleForBearing(enemyBearing + 90));
+        setAhead(1000 * directionMovementSign);
+
+        execute();
+    }
+
+
+    public void doMoveInZigZag() {
+        setMaxVelocity(rand.nextDouble() * 8 + 2); // Velocidade aleatória entre 2 e 10
+
+        setTurnRight(setNormalizeAngleForBearing(enemyBearing + 90));
+        execute();
+
+        System.out.println(getTime() % 20);
+
+        if (getTime() % 20 == 0) {
+            directionMovementSign *= -1;
+            setAhead(150 * directionMovementSign);
+            execute();
+            System.out.println("moving");
+
+        }
+    }
+
+    double setNormalizeAngleForBearing(double angle) {
+
+        while (angle >  180) {
+            angle -= 360;
+        }
+        while (angle < -180) {
+            angle += 360;
+        }
+        return angle;
+    }
+
+
+    public void onRobotDeath(RobotDeathEvent event) {
+        // Reseta as variaveis de robo mais proximo
+        System.out.println("Robo morto");
+        nearestEnemyRobotDistance = Double.POSITIVE_INFINITY;
+        nearestEnemyRobotName = "";
+    }
+
+    void aimOnNearestRobot(ScannedRobotEvent e) {
+        double absoluteBearing = getHeadingRadians() + e.getBearingRadians();
+        setTurnGunRightRadians(
+                robocode.util.Utils.normalRelativeAngle(absoluteBearing -
+                        getGunHeadingRadians()));
+    }
+
+    double calculateBulletPower(double distance) {
+        return Math.max(3.0 / (distance / 100.0), 0.5);
     }
 }
