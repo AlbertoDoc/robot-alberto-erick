@@ -2,9 +2,8 @@ package alberto;
 
 import robocode.*;
 
-import java.util.Random;
+import java.util.*;
 import java.awt.*;
-import java.util.Arrays;
 import java.util.List;
 
 public class AlbertoErickRobot extends AdvancedRobot {
@@ -21,8 +20,7 @@ public class AlbertoErickRobot extends AdvancedRobot {
     MoveStrategy moveStrategy = MoveStrategy.ZIG_ZAG;
     List<MoveStrategy> moveStrategyList = Arrays.asList(MoveStrategy.ZIG_ZAG, MoveStrategy.CIRCLE);
     int strategyIndex = 0;
-    double nearestEnemyRobotDistance = Double.POSITIVE_INFINITY;
-    String nearestEnemyRobotName = "";
+    double enemyLastAbsBearing = 0.0;
 
     public void run() {
         setup();
@@ -68,25 +66,9 @@ public class AlbertoErickRobot extends AdvancedRobot {
      * onScannedRobot: What to do when you see another robot
      */
     public void onScannedRobot(ScannedRobotEvent e) {
-        System.out.println("robo escaneado!");
         enemyBearing = e.getBearing();
-        // vira o robo a 90 graus do alvo scaneado
-        double absoluteBearing = getHeadingRadians() + e.getBearingRadians();
-        setTurnRightRadians(robocode.util.Utils.normalRelativeAngle(absoluteBearing -
-                getGunHeadingRadians() + 1.57));
         doMoveStrategy();
-
-        if (e.getDistance() <= nearestEnemyRobotDistance) {
-            System.out.println("Robo mais próximo escaneado: " + e.getName());
-            nearestEnemyRobotDistance = e.getDistance();
-            nearestEnemyRobotName = e.getName();
-        }
-
-        if (e.getName().equals(nearestEnemyRobotName)) {
-            nearestEnemyRobotDistance = e.getDistance();
-            aimOnNearestRobot(e);
-            fire(calculateBulletPower(e.getDistance()));
-        }
+        doShootStrategy(e);
     }
 
     /**
@@ -192,19 +174,24 @@ public class AlbertoErickRobot extends AdvancedRobot {
         return angle;
     }
 
+    void doShootStrategy(ScannedRobotEvent e) {
+        System.out.println("Velocity: " + e.getVelocity());
+        System.out.println("Heading: " + e.getHeading());
 
-    public void onRobotDeath(RobotDeathEvent event) {
-        // Reseta as variaveis de robo mais proximo
-        System.out.println("Robo morto");
-        nearestEnemyRobotDistance = Double.POSITIVE_INFINITY;
-        nearestEnemyRobotName = "";
-    }
-
-    void aimOnNearestRobot(ScannedRobotEvent e) {
         double absoluteBearing = getHeadingRadians() + e.getBearingRadians();
-        setTurnGunRightRadians(
-                robocode.util.Utils.normalRelativeAngle(absoluteBearing -
-                        getGunHeadingRadians()));
+        if (e.getVelocity() == 0.0) {
+            setTurnGunRightRadians(
+                    robocode.util.Utils.normalRelativeAngle(absoluteBearing -
+                            getGunHeadingRadians()));
+        } else {
+            double futureBearing = Math.abs(absoluteBearing - enemyLastAbsBearing);
+            setTurnGunRightRadians(
+                    robocode.util.Utils.normalRelativeAngle((absoluteBearing + futureBearing) -
+                            getGunHeadingRadians()));
+        }
+
+        fire(calculateBulletPower(e.getDistance()));
+        enemyLastAbsBearing = absoluteBearing;
     }
 
     double calculateBulletPower(double distance) {
