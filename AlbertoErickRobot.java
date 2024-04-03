@@ -6,6 +6,8 @@ import java.util.*;
 import java.awt.*;
 import java.util.List;
 
+// Feito por Alberto Oliveira Santos e Erick Silva Kokubum
+
 public class AlbertoErickRobot extends AdvancedRobot {
     private static final int HIT_NUMBERS_TO_SWITCH_MOVEMENT = 3;
     private static final long HIT_EVALUATE_INTERVAL = 3000; // 3 segundos em milissegundos
