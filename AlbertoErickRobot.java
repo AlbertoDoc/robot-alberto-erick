@@ -26,8 +26,8 @@ public class AlbertoErickRobot extends AdvancedRobot {
     private static final double ENEMY_THRESHOLD_DISTANCE = 70.0; // distancia limit bayes do inimigo
     private static final long HIT_TOO_MUCH_EVALUATE_INTERVAL = 5000; // 10 segundos em milissegundos
     private static final int V_LOWER_LIMIT_SLOW = 2; 
-    private static final int V_LOWER_LIMIT_MEDIUM = 5; 
-    private static final int V_LOWER_LIMIT_FAST = 8; 
+    private static final int V_LOWER_LIMIT_MEDIUM = 4; 
+    private static final int V_LOWER_LIMIT_FAST = 6; 
 
     int numberOfHits = 0;
     long firstHitTime = 0;
@@ -229,10 +229,6 @@ public class AlbertoErickRobot extends AdvancedRobot {
         inferrer.setEvidence(evidence);
 
         double[] beliefsMS = inferrer.getBeliefs(net.getNode("MS")); 
-        System.out.println(beliefsMS[0]);
-        System.out.println(beliefsMS[1]);
-        System.out.println(isNearWall() == WallNear.NONE);
-        System.out.println(enemyDistance > ENEMY_THRESHOLD_DISTANCE);
         
         if (!hitTooMuch) {
         	if (beliefsMS[0] >= beliefsMS[1]) {
@@ -281,7 +277,7 @@ public class AlbertoErickRobot extends AdvancedRobot {
     	Query zeroVelocityQ = new Query("velocityIsZero",new Term[] {
     		new org.jpl7.Float(getVelocity())
     	});
-        setMaxVelocity(rand.nextDouble() * 8 + vLowerLimit); // Velocidade aleatória entre 2 e 10
+        setMaxVelocity(rand.nextDouble() * 8 + vLowerLimit); // Velocidade aleatória entre lower limit e 10 + lower limit
         if (zeroVelocityQ.hasSolution()) {
             directionMovementSign *= -1;
         }
@@ -296,7 +292,7 @@ public class AlbertoErickRobot extends AdvancedRobot {
 
     public void doMoveInZigZag(int vLowerLimit) {
     	
-        setMaxVelocity(rand.nextDouble() * 10 + vLowerLimit); // Velocidade aleatória entre 2 e 10
+        setMaxVelocity(rand.nextDouble() * 10 + vLowerLimit); // Velocidade aleatória entre lower limit e 10 + lower limit
 
         setTurnRight(setNormalizeAngleForBearing(enemyBearing + 90));
         execute();
