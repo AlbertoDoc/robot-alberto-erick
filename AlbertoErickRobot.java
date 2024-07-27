@@ -76,11 +76,11 @@ public class AlbertoErickRobot extends AdvancedRobot {
         
     	BayesNode enemyDistance = net.createNode("ED");
     	enemyDistance.addOutcomes("CLOSE", "FAR");
-    	enemyDistance.setProbabilities(0.22, 0.78);
+    	enemyDistance.setProbabilities(0.3, 0.7);
     	
     	BayesNode wallDistance = net.createNode("WD");
     	wallDistance.addOutcomes("CLOSE", "FAR");
-    	wallDistance.setProbabilities(0.35, 0.65);
+    	wallDistance.setProbabilities(0.4, 0.6);
 
     	BayesNode movementStrategy = net.createNode("MS");
     	movementStrategy.addOutcomes(MoveStrategy.ZIG_ZAG.toString(), MoveStrategy.CIRCLE.toString());
