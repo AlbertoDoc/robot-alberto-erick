@@ -438,7 +438,7 @@ public class AlbertoErickRobot extends AdvancedRobot {
                 newData.append(shootInProgress.getX()).append(separator)
                         .append(shootInProgress.getY()).append(separator)
                         .append(getX()).append(separator)
-                        .append(getY()).append(separator).append("\n");
+                        .append(getY()).append("\n");
 
                 FileWriter writer = openDataset();
                 writer.write(newData.toString());
