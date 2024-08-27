@@ -4,53 +4,86 @@ import pandas as pd
 from sklearn.model_selection import KFold
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping
 
-print("Abrindo dataset")
-df = pd.read_csv("normalized_datasetAlbertoErick.csv").sample(n=100000)
+# Load the dataset
+print("Opening dataset")
+df = pd.read_csv("normalized_datasetAlbertoErick.csv")
 
+print(df.size)
+
+# Convert the dataset to a numpy array
 data_array = np.array(df, dtype=float)
-print(data_array[0])
 
-features = np.array([data_array[0][0], data_array[0][1],data_array[0][2],data_array[0][3],data_array[0][4],data_array[0][5],data_array[0][6],data_array[0][7], data_array[0][10], data_array[0][11]])
-labels = np.array([data_array[0][8], data_array[0][9]])
+# Transform the dataset into features and labels arrays
+print("Transforming dataset into features and labels")
+labels = data_array[:, 7:9]
+features = np.delete(data_array, [7, 8], axis=1)
 
-print("transformando dataset em features e labels")
-for data in data_array:
-    features = np.vstack((features, np.array([data[0], data[1],data[2],data[3],data[4],data[5],data[6],data[7], data[10], data[11]])))
-    labels = np.vstack((labels, np.array([data[8], data[9]])))
-
-features = np.delete(features, 0, 0)
-labels = np.delete(labels, 0, 0)
-
-print("Verificando se tem o mesmo tamanho")
-print(np.size(features, 0))
-print(np.size(labels, 0))
-
-# Definindo 5 folds
+# Define 5-fold cross-validation
 kfold = KFold(n_splits=5, shuffle=True)
 
+# Initialize fold counter
 fold_no = 1
+
+# Training loop for cross-validation
 for train, test in kfold.split(features, labels):
+    # Build the Sequential model
     model = Sequential()
-    model.add(Dense(64, input_dim=10, activation='relu'))
+    
+    # Input layer is implicit in the first Dense layer
+    # Hidden Layer 1: 128 neurons, ReLU activation
+    model.add(Dense(128, input_dim=10, activation='relu'))
+    
+    # Hidden Layer 2: 64 neurons, ReLU activation
+    model.add(Dense(64, activation='relu'))
+    
+    # Hidden Layer 3: 32 neurons, ReLU activation
     model.add(Dense(32, activation='relu'))
-    model.add(Dense(2, activation='sigmoid'))
-
-    model.compile(loss='mean_absolute_error', optimizer='adam', metrics=['mean_absolute_error'])
-
+    
+    # Output Layer: 2 neurons (x and y positions), Linear activation for regression
+    model.add(Dense(2, activation='linear'))
+    
+    # Compile the model
+    # Optimizer: Adam for efficient and adaptive learning
+    # Loss function: MSE for penalizing large errors in regression
+    # Metric: RMSE for evaluating model performance in the same units as the target variable
+    model.compile(optimizer=Adam(), loss='mean_squared_error', metrics=[tf.keras.metrics.RootMeanSquaredError()])
+    
+    # Early Stopping Callback
+    # Stops training when validation loss does not improve for 5 consecutive epochs
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    
     print('------------------------------------------------------------------------')
     print(f'Training for fold {fold_no} ...')
-
-    history = model.fit(features[train], labels[train], epochs=10, batch_size=10)
-
+    
+    # Train the model with early stopping
+    history = model.fit(
+        features[train], labels[train], 
+        validation_data=(features[test], labels[test]),
+        epochs=100,  # Start with a high number of epochs, but early stopping will prevent overfitting
+        batch_size=10,
+        callbacks=[early_stopping],  # Apply early stopping
+        verbose=1  # Display training progress
+    )
+    
+    # Evaluate the model's performance on the test data
+    # Uses RMSE as the metric to assess prediction accuracy in the same units as the target variable
     scores = model.evaluate(features[test], labels[test], verbose=0)
-    print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
-    #acc_per_fold.append(scores[1] * 100)
-    #loss_per_fold.append(scores[0])
-
+    print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]}')
+    
     # Increase fold number
-    fold_no = fold_no + 1
+    fold_no += 1
 
+# Make a prediction with new data (example)
 new_data = np.array([[0.31743341, 0.58566821, 0.88848922, 0.91628991, 0.1, 0.4375, 0.0, 0.59706121, 0.98446262, 0.53060559]])
 prediction = model.predict(new_data)
-print(prediction)
+print("Predicted final enemy positions (x, y):", prediction)
+
+# Save model weights to CSV files
+print("Saving model weights to CSV files")
+for i, layer in enumerate(model.layers):
+    weights, biases = layer.get_weights()
+    np.savetxt(f"layer_{i}_weights.csv", weights, delimiter=",")
+    np.savetxt(f"layer_{i}_biases.csv", biases, delimiter=",")
