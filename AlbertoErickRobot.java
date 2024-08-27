@@ -1,6 +1,5 @@
 package albertoErick;
 
-import org.encog.engine.network.activation.ActivationReLU;
 import robocode.*;
 
 import java.io.*;
@@ -14,11 +13,6 @@ import org.eclipse.recommenders.jayes.inference.junctionTree.JunctionTreeAlgorit
 
 import net.sourceforge.jFuzzyLogic.FIS;
 import net.sourceforge.jFuzzyLogic.FunctionBlock;
-
-import org.encog.neural.networks.BasicNetwork;
-import org.encog.neural.networks.layers.BasicLayer;
-import org.encog.neural.networks.training.propagation.resilient.ResilientPropagation;
-import org.encog.util.simple.EncogUtility;
 
 // Feito por Alberto Oliveira Santos e Erick Silva Kokubum
 
@@ -74,8 +68,6 @@ public class AlbertoErickRobot extends AdvancedRobot {
     private double[][] layer3Biases = new double[2][1];
     private double[][] layer3Weights = new double[32][2];
 
-    private BasicNetwork neuralNetwork;
-
     public void run() {
         // Initialize fuzzy
         fis = FIS.load(fclFilePath, true);
@@ -85,27 +77,14 @@ public class AlbertoErickRobot extends AdvancedRobot {
         setup();
         // Initialize the Bayesian network
         initializeBayesianNetwork();
-        layer0Biases = readMatrixFromCSV(128, 1, "./robots/albertoErick/layer_0_biases.csv");
-        layer0Weights = readMatrixFromCSV(10, 128, "./robots/albertoErick/layer_0_weights.csv");
-        layer1Biases = readMatrixFromCSV(64, 1, "./robots/albertoErick/layer_1_biases.csv");
-        layer1Weights = readMatrixFromCSV(128, 64, "./robots/albertoErick/layer_1_weights.csv");
-        layer2Biases = readMatrixFromCSV(32, 1, "./robots/albertoErick/layer_2_biases.csv");
-        layer2Weights = readMatrixFromCSV(64, 32, "./robots/albertoErick/layer_2_weights.csv");
-        layer3Biases = readMatrixFromCSV(2, 1, "./robots/albertoErick/layer_3_biases.csv");
-        layer3Weights = readMatrixFromCSV(32, 2, "./robots/albertoErick/layer_3_weights.csv");
-        System.out.println(layer3Weights[0][0]);
-        System.out.println(layer3Weights[31][1]);
-
-        neuralNetwork = new BasicNetwork();
-        neuralNetwork.addLayer(new BasicLayer(null, false, 10)); // Camada de entrada
-        neuralNetwork.addLayer(new BasicLayer(new ActivationReLU(), true, 128)); // Camada escondida 1
-        neuralNetwork.addLayer(new BasicLayer(new ActivationReLU(), true, 64)); // Camada escondida 2
-        neuralNetwork.addLayer(new BasicLayer(new ActivationReLU(), true, 32)); // Camada escondida 3
-        neuralNetwork.addLayer(new BasicLayer(new ActivationReLU(), true, 2)); // Camada de saída
-        neuralNetwork.getStructure().finalizeStructure();
-        neuralNetwork.reset();
-
-        setWeightsLayer0();
+        layer0Biases = readMatrixFromCSV(128, 1, "./albertoErick_layer_0_biases.csv");
+        layer0Weights = readMatrixFromCSV(10, 128, "./albertoErick_layer_0_weights.csv");
+        layer1Biases = readMatrixFromCSV(64, 1, "./albertoErick_layer_1_biases.csv");
+        layer1Weights = readMatrixFromCSV(128, 64, "./albertoErick_layer_1_weights.csv");
+        layer2Biases = readMatrixFromCSV(32, 1, "./albertoErick_layer_2_biases.csv");
+        layer2Weights = readMatrixFromCSV(64, 32, "./albertoErick_layer_2_weights.csv");
+        layer3Biases = readMatrixFromCSV(2, 1, "./albertoErick_layer_3_biases.csv");
+        layer3Weights = readMatrixFromCSV(32, 2, "./albertoErick_layer_3_weights.csv");
 
         while(true) {
             if (getTime() - firstHitTime > HIT_EVALUATE_INTERVAL) {
@@ -362,9 +341,9 @@ public class AlbertoErickRobot extends AdvancedRobot {
         double absoluteBearing = getHeadingRadians() + e.getBearingRadians();
         // double futureBearing = Math.abs(absoluteBearing - enemyLastAbsBearing);
        // if (e.getVelocity() == 0.0) {
-            setTurnGunRightRadians(
-                    robocode.util.Utils.normalRelativeAngle(absoluteBearing -
-                            getGunHeadingRadians()));
+            //setTurnGunRightRadians(
+             //       robocode.util.Utils.normalRelativeAngle(absoluteBearing -
+              //              getGunHeadingRadians()));
        // } else {
          //   setTurnGunRightRadians(
           //          robocode.util.Utils.normalRelativeAngle((absoluteBearing + futureBearing) -
@@ -379,7 +358,10 @@ public class AlbertoErickRobot extends AdvancedRobot {
                     break;
                 case EXECUTING:
                     double[][] output = predict(e, absoluteBearing);
-                    shootInProgress = fireBullet(calculateBulletPower(getEnergy(), e.getDistance(), 0, e.getVelocity()));
+                    double angleToEnemy = Math.toDegrees(Math.atan2(output[0][0] - getX(), output[1][0] - getY()));
+                    double gunTurn = angleToEnemy - getGunHeading();
+                    setTurnGunRight(setNormalizeAngleForBearing(gunTurn));
+                    shootInProgress = fireBullet(calculateBulletPower(getEnergy(), e.getDistance(), gunTurn, e.getVelocity()));
                     break;
             }
         }
@@ -409,38 +391,6 @@ public class AlbertoErickRobot extends AdvancedRobot {
         COLLECTING, EXECUTING
     }
 
-    FileWriter openDataset() {
-        try {
-            // Cria o arquivo caso não exista
-            File dataset = new File(datasetFileName);
-
-            if (dataset.createNewFile()) {
-                FileWriter writer = new FileWriter(datasetFileName, true);
-                writer.write("Posição x inicial inimigo, " +
-                        "Posição y inicial inimigo,  " +
-                        "Posição x inicial nossa,  " +
-                        "Posição y inicial nossa, " +
-                        "Velocidade inicial inimigo, " +
-                        "Velocidade inicial nossa, " +
-                        "Estratégia de movimentação, " +
-                        "Angulo utilizado para disparar, " +
-                        "Posição x final do inimigo, " +
-                        "Posição Y final do inimigo, " +
-                        "Posição x final nossa, " +
-                        "Posição Y final nossa\n"
-                );
-                writer.close();
-            }
-
-            // Instancia objeto que escreve no arquivo
-            return new FileWriter(datasetFileName, true);
-        } catch (IOException e) {
-            System.out.println("An error has occurred.");
-            e.printStackTrace();
-            return null;
-        }
-    }
-
     void collectEvent(ScannedRobotEvent event, double absoluteBearing) {
         // Estrutura do dataset: CSV -> X (nosso), Y (nosso), Velocidade (inimigo), Estrat. Movimentação
         String separator = ", ";
@@ -456,16 +406,6 @@ public class AlbertoErickRobot extends AdvancedRobot {
 
         // Escrever no arquivo
         if (newData == null && shootInProgress == null) {
-            input[0][0] = enemyX;
-            input[1][0] = enemyY;
-            input[2][0] = getX();
-            input[3][0] = getY();
-            input[4][0] = event.getVelocity();
-            input[5][0] = getVelocity();
-            input[6][0] = moveStrategyNumber;
-            input[7][0] = absoluteBearing;
-            input[8][0] = getX();
-            input[9][0] = getY();
             newData = new StringBuilder();
             newData.append(enemyX).append(separator)
                     .append(enemyY).append(separator)
@@ -634,8 +574,5 @@ public class AlbertoErickRobot extends AdvancedRobot {
         System.out.println("Saída da rede neural:");
         printMatrix(layer3_output);
         return layer3_output;
-    }
-
-    private void setWeightsLayer0() {
     }
 }
