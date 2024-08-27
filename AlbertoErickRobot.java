@@ -64,6 +64,7 @@ public class AlbertoErickRobot extends AdvancedRobot {
     String separator = ", ";
 
     // Neural network weights and bias layers
+    private double[][] input = new double[10][1];
     private double[][] layer0Biases = new double[128][1];
     private double[][] layer0Weights = new double[10][128];
     private double[][] layer1Biases = new double[64][1];
@@ -376,11 +377,11 @@ public class AlbertoErickRobot extends AdvancedRobot {
             switch (state) {
                 case COLLECTING: collectEvent(e, absoluteBearing);
                     break;
-                case EXECUTING: predict();
+                case EXECUTING:
+                    double[][] output = predict(e, absoluteBearing);
+                    shootInProgress = fireBullet(calculateBulletPower(getEnergy(), e.getDistance(), 0, e.getVelocity()));
                     break;
             }
-
-            shootInProgress = fireBullet(calculateBulletPower(getEnergy(), e.getDistance(), 0, e.getVelocity()));
         }
         enemyLastAbsBearing = absoluteBearing;
     }
@@ -455,6 +456,16 @@ public class AlbertoErickRobot extends AdvancedRobot {
 
         // Escrever no arquivo
         if (newData == null && shootInProgress == null) {
+            input[0][0] = enemyX;
+            input[1][0] = enemyY;
+            input[2][0] = getX();
+            input[3][0] = getY();
+            input[4][0] = event.getVelocity();
+            input[5][0] = getVelocity();
+            input[6][0] = moveStrategyNumber;
+            input[7][0] = absoluteBearing;
+            input[8][0] = getX();
+            input[9][0] = getY();
             newData = new StringBuilder();
             newData.append(enemyX).append(separator)
                     .append(enemyY).append(separator)
@@ -472,22 +483,11 @@ public class AlbertoErickRobot extends AdvancedRobot {
         // Esta condição verifica se o bullet do evento é igual ao que armazenamos no disparo
         if (shootInProgress.hashCode() == event.getBullet().hashCode()) {
             try {
-                newData.append(shootInProgress.getX()).append(separator)
-                        .append(shootInProgress.getY()).append(separator)
-                        .append(getX()).append(separator)
-                        .append(getY()).append("\n");
-
-                FileWriter writer = openDataset();
-                writer.write(newData.toString());
-                writer.close();
-
                 // Resetando valores para coletar outro dado
                 shootInProgress = null;
                 newData = null;
             } catch (NullPointerException e) {
                 System.out.println("onBulletHit NullPointerException thrown");
-            } catch (IOException e) {
-                System.out.println("IOException thrown");
             }
         }
 
@@ -500,26 +500,11 @@ public class AlbertoErickRobot extends AdvancedRobot {
         if (shootInProgress.hashCode() == event.getBullet().hashCode()) {
             // Verificar se precisamos armazenar que erramos esse tiro, pois pode ser uma coincidencia ter acertado o disparo do inimigo
             try {
-                newData.append(enemyX)
-                        .append(separator)
-                        .append(enemyY)
-                        .append(separator)
-                        .append(getX())
-                        .append(separator)
-                        .append(getY())
-                        .append("\n");
-
-                FileWriter writer = openDataset();
-                writer.write(newData.toString());
-                writer.close();
-
                 // Resetando valores para coletar outro dado
                 shootInProgress = null;
                 newData = null;
             } catch (NullPointerException e) {
                 System.out.println("onBulletHitBullet NullPointerException thrown");
-            } catch (IOException e) {
-                System.out.println("IOException thrown");
             }
         }
 
@@ -531,35 +516,16 @@ public class AlbertoErickRobot extends AdvancedRobot {
     public void onBulletMissed(BulletMissedEvent event) {
         if (shootInProgress.hashCode() == event.getBullet().hashCode()) {
             try {
-                newData.append(enemyX)
-                        .append(separator)
-                        .append(enemyY)
-                        .append(separator)
-                        .append(getX())
-                        .append(separator)
-                        .append(getY())
-                        .append("\n");
-
-                FileWriter writer = openDataset();
-                writer.write(newData.toString());
-                writer.close();
-
                 // Resetando valores para coletar outro dado
                 shootInProgress = null;
                 newData = null;
             } catch (NullPointerException e) {
                 System.out.println("onBulletMissed NullPointerException thrown");
-            } catch (IOException e) {
-                System.out.println("IOException thrown");
             }
         }
 
         // É ativado quando o tiro acerta a parede
         super.onBulletMissed(event);
-    }
-
-    public double predict() {
-        return 0.0;
     }
 
     public double[][] readMatrixFromCSV(int rows, int columns, String filePath) {
@@ -587,6 +553,87 @@ public class AlbertoErickRobot extends AdvancedRobot {
         }
 
         return matrix;
+    }
+
+    private static double[][] multiplyMatrices(double[][] a, double[][] b) {
+        double[][] result = new double[a.length][b[0].length];
+        for (int i = 0; i < a.length; i++) {
+            for (int j = 0; j < b[0].length; j++) {
+                for (int k = 0; k < b.length; k++) {
+                    result[i][j] += a[i][k] * b[k][j];
+                }
+            }
+        }
+        return result;
+    }
+
+    private static double[][] addMatrices(double[][] a, double[][] b) {
+        double[][] result = new double[a.length][a[0].length];
+        for (int i = 0; i < a.length; i++) {
+            for (int j = 0; j < a[i].length; j++) {
+                result[i][j] = a[i][j] + b[i][j];
+            }
+        }
+        return result;
+    }
+
+    private static double[][] relu(double[][] matrix) {
+        double[][] result = new double[matrix.length][matrix[0].length];
+        for (int i = 0; i < matrix.length; i++) {
+            for (int j = 0; j < matrix[i].length; j++) {
+                result[i][j] = Math.max(0, matrix[i][j]);
+            }
+        }
+        return result;
+    }
+
+    private static double[][] transposeMatrix(double[][] matrix) {
+        double[][] result = new double[matrix[0].length][matrix.length];
+        for (int i = 0; i < matrix.length; i++) {
+            for (int j = 0; j < matrix[i].length; j++) {
+                result[j][i] = matrix[i][j];
+            }
+        }
+        return result;
+    }
+
+    private static void printMatrix(double[][] matrix) {
+        for (double[] row : matrix) {
+            for (double value : row) {
+                System.out.print(value + " ");
+            }
+            System.out.println();
+        }
+    }
+
+    private double[][] predict(ScannedRobotEvent event, double absoluteBearing) {
+        int moveStrategyNumber = moveStrategy == MoveStrategy.CIRCLE ? 0 : 1;
+        double angleToEnemy = event.getBearing();
+
+        double angle = Math.toRadians(getHeading() + angleToEnemy % 360);
+
+        double enemyX = (getX() + Math.sin(angle) * event.getDistance());
+        double enemyY = (getY() + Math.cos(angle) * event.getDistance());
+
+        input[0][0] = enemyX;
+        input[1][0] = enemyY;
+        input[2][0] = getX();
+        input[3][0] = getY();
+        input[4][0] = event.getVelocity();
+        input[5][0] = getVelocity();
+        input[6][0] = moveStrategyNumber;
+        input[7][0] = absoluteBearing;
+        input[8][0] = getX();
+        input[9][0] = getY();
+
+        double[][] layer0_output = relu(addMatrices(multiplyMatrices(transposeMatrix(layer0Weights), input), layer0Biases));
+        double[][] layer1_output = relu(addMatrices(multiplyMatrices(transposeMatrix(layer1Weights), layer0_output), layer1Biases));
+        double[][] layer2_output = relu(addMatrices(multiplyMatrices(transposeMatrix(layer2Weights), layer1_output), layer2Biases));
+        double[][] layer3_output = addMatrices(multiplyMatrices(transposeMatrix(layer3Weights), layer2_output), layer3Biases);
+
+        System.out.println("Saída da rede neural:");
+        printMatrix(layer3_output);
+        return layer3_output;
     }
 
     private void setWeightsLayer0() {
